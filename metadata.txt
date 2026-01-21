@@ -1,0 +1,26 @@
+[general]
+name=Multiplicate layer by attribute
+qgisMinimumVersion=3.38
+qgisMaximumVersion=3.99
+description=Multiplicate layer by attribute
+version=0.1
+author=PSIG
+email=geraldo@servus.at
+license=GPL-3.0-or-later
+
+about=Multiplicate layer by attribute
+
+tracker=https://github.com/psigcat/multiplicate_layer_by_attribute/issues
+repository=https://github.com/psigcat/multiplicate_layer_by_attribute
+homepage=https://github.com/psigcat/multiplicate_layer_by_attribute
+
+hasProcessingProvider=no
+tags=python, layer
+category=Plugins
+icon=icon.png
+experimental=False
+deprecated=False
+server=False
+
+# changelog=
+
