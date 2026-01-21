@@ -22,10 +22,11 @@
  ***************************************************************************/
 """
 
-import os
-
+from qgis.core import Qgis
 from qgis.PyQt import uic
 from qgis.PyQt import QtWidgets
+
+import os
 
 # This loads your .ui file so that PyQt can populate your plugin with the elements from Qt Designer
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
@@ -42,3 +43,6 @@ class multiplicate_layer_by_attributeDialog(QtWidgets.QDialog, FORM_CLASS):
         # http://qt-project.org/doc/qt-4.8/designer-using-a-ui-file.html
         # #widgets-and-dialogs-with-auto-connect
         self.setupUi(self)
+
+        # Set QgsMapLayerComboBox filters
+        self.layer_list.setFilters(Qgis.LayerFilter.VectorLayer)

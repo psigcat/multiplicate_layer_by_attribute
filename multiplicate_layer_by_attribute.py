@@ -34,6 +34,8 @@ class multiplicate_layer_by_attribute:
         self.menu = self.tr(u'&Multiplicate layer by attribute')
 
         self.first_start = None
+        self.active_layer = None
+        self.active_field = None
 
 
     def tr(self, message):
@@ -105,45 +107,85 @@ class multiplicate_layer_by_attribute:
         if self.first_start == True:
             self.first_start = False
             self.dlg = multiplicate_layer_by_attributeDialog()
+            self.iface.layerTreeView().currentLayerChanged.connect(self.on_active_layer_changed)
+            self.dlg.layer_list.layerChanged.connect(self.on_active_layer_changed)
+            self.dlg.field_list.fieldChanged.connect(self.on_active_field_changed)
 
         self.dlg.show()
         result = self.dlg.exec_()
 
         if result:
             print("execute")
-            layer = self.iface.activeLayer()
 
-            if layer and layer.type() == QgsMapLayerType.VectorLayer:
-                print(layer.name())
-                self.createBrigadaLayers(layer)
+            if not self.active_layer or self.active_layer.type() != QgsMapLayerType.VectorLayer:
+                self.dlg.messageBar.pushMessage("Select a layer in order to execute process", level=Qgis.Warning)
+                return
+
+            if not self.active_field:
+                self.dlg.messageBar.pushMessage("Select a field in order to execute process", level=Qgis.Warning)
+                return
+
+            self.create_multiple_layers(self.active_layer, self.active_field)
 
 
-    def createBrigadaLayers(self, layer):
+    def on_active_layer_changed(self):
+        """ active layer changed """
+
+        # active_layer = QgsProject.instance().layer(QgsProject.instance().layerTreeRoot().currentLayer().id())
+        self.active_layer = self.iface.activeLayer()
+        if self.active_layer and self.active_layer.type() == QgsMapLayerType.VectorLayer:
+            print(f"Active layer changed to: {self.active_layer.name()}")
+
+            self.iface.setActiveLayer(self.active_layer)
+            self.dlg.layer_list.setLayer(self.active_layer)
+            self.dlg.field_list.setLayer(self.active_layer)
+        else:
+            self.iface.setActiveLayer(None)
+            self.dlg.layer_list.setLayer(None)
+            self.dlg.field_list.setLayer(None)
+
+
+    def on_active_field_changed(self):
+        """ active field changed """
+
+        self.active_field = self.dlg.field_list.currentField()
+        print(f"Active field changed to: {self.active_field}")
+
+        # get all unique values
+        unique_values = self.active_layer.uniqueValues(self.active_layer.fields().indexFromName(self.active_field))
+
+        for field_value in sorted(unique_values):
+            # TODO: cast to string
+            self.dlg.field_values.addItem(field_value)
+
+        self.dlg.resume_msg.setText(f"{len(unique_values)} layers will be created.")
+
+
+    def create_multiple_layers(self, layer, field):
+        """ clone layer with all unique selected field values """
 
         # create group
         parent = QgsProject.instance().layerTreeRoot()
-        layer_group = parent.addGroup("Brigades")
-        layer_name = layer.name()
+        layer_group = parent.addGroup(field)
 
-        # get brigades
-        target_field = "BRIGADA"
-        unique_values = layer.uniqueValues(layer.fields().indexFromName(target_field))
+        # get all unique values
+        unique_values = self.active_layer.uniqueValues(self.active_layer.fields().indexFromName(self.active_field))
 
-        for brigada in sorted(unique_values):
-            # Get the value from the "BRIGADA" field fetching first feature that matches this class
-            filter_expression = f'"{target_field}" = \'{brigada}\''
+        for field_value in sorted(unique_values):
+            # Get the value from the active field fetching first feature that matches this class
+            filter_expression = f'"{field}" = \'{field_value}\''
             req = QgsFeatureRequest().setFilterExpression(filter_expression)
             feature = next(layer.getFeatures(req), None)
 
             if feature:
-                brigada_val = feature[target_field]
+                #brigada_val = feature[target_field]
 
-                if brigada_val and brigada_val != "":
-                    print(brigada_val)
+                if field_value and field_value != "":
+                    print(field_value)
 
                     # duplicate layer and apply Provider Feature Filter
                     new_layer = layer.clone()
-                    new_layer.setName(str(brigada_val))
+                    new_layer.setName(str(field_value))
                     new_layer.setSubsetString(filter_expression)
 
                     QgsProject.instance().addMapLayer(new_layer, False)
