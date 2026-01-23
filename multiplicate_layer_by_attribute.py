@@ -107,8 +107,11 @@ class multiplicate_layer_by_attribute:
         if self.first_start == True:
             self.first_start = False
             self.dlg = multiplicate_layer_by_attributeDialog()
+            self.dlg.layer_list.setAllowEmptyLayer(True, "Select")
+            self.dlg.field_list.setAllowEmptyFieldName(True)
+            self.on_active_layer_changed()
             self.iface.layerTreeView().currentLayerChanged.connect(self.on_active_layer_changed)
-            self.dlg.layer_list.layerChanged.connect(self.on_active_layer_changed)
+            self.dlg.layer_list.layerChanged.connect(lambda:self.on_active_layer_changed(True))
             self.dlg.field_list.fieldChanged.connect(self.on_active_field_changed)
 
         self.dlg.show()
@@ -128,28 +131,44 @@ class multiplicate_layer_by_attribute:
             self.create_multiple_layers(self.active_layer, self.active_field)
 
 
-    def on_active_layer_changed(self):
+    def on_active_layer_changed(self, ui_change=False):
         """ active layer changed """
 
-        # active_layer = QgsProject.instance().layer(QgsProject.instance().layerTreeRoot().currentLayer().id())
-        self.active_layer = self.iface.activeLayer()
-        if self.active_layer and self.active_layer.type() == QgsMapLayerType.VectorLayer:
-            print(f"Active layer changed to: {self.active_layer.name()}")
+        # if ui_change:
+        #     # layer changed in plugin UI
+        #     self.active_layer = self.dlg.layer_list.currentLayer()
 
-            self.iface.setActiveLayer(self.active_layer)
+        #     if self.active_layer and self.active_layer.type() == QgsMapLayerType.VectorLayer:
+        #         print(f"1 Active layer changed to: {self.active_layer.name()}")
+        #         self.iface.setActiveLayer(self.active_layer)
+        #         self.dlg.field_list.setLayer(self.active_layer)
+        
+        # else:
+            # layer changed in QGIS layer tree
+        self.active_layer = self.iface.activeLayer()
+
+        if self.active_layer and self.active_layer.type() == QgsMapLayerType.VectorLayer:
+            print(f"2 Active layer changed to: {self.active_layer.name()}")
+            # active_layer = QgsProject.instance().layer(QgsProject.instance().layerTreeRoot().currentLayer().id())
             self.dlg.layer_list.setLayer(self.active_layer)
             self.dlg.field_list.setLayer(self.active_layer)
-        else:
+
+        if not self.active_layer or self.active_layer.type() != QgsMapLayerType.VectorLayer:
             self.iface.setActiveLayer(None)
             self.dlg.layer_list.setLayer(None)
             self.dlg.field_list.setLayer(None)
+        
+        print(self.active_layer)
 
 
-    def on_active_field_changed(self):
+    def on_active_field_changed(self, none_selected=False):
         """ active field changed """
 
         self.active_field = self.dlg.field_list.currentField()
         print(f"Active field changed to: {self.active_field}")
+
+        if self.active_field == "":
+            return
 
         # get all unique values
         unique_values = self.active_layer.uniqueValues(self.active_layer.fields().indexFromName(self.active_field))
