@@ -42,7 +42,11 @@
     </widget>
    </item>
    <item>
-    <widget class="QgsFieldComboBox" name="field_list"/>
+    <widget class="QgsFieldComboBox" name="field_list">
+     <property name="allowEmptyFieldName">
+      <bool>false</bool>
+     </property>
+    </widget>
    </item>
    <item>
     <widget class="QLabel" name="label_2">
@@ -58,6 +62,9 @@
      </property>
      <property name="focusPolicy">
       <enum>Qt::NoFocus</enum>
+     </property>
+     <property name="selectionMode">
+      <enum>QAbstractItemView::NoSelection</enum>
      </property>
     </widget>
    </item>

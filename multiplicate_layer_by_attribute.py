@@ -5,6 +5,7 @@ from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction
 
 from .multiplicate_layer_by_attribute_dialog import multiplicate_layer_by_attributeDialog
+
 import os.path
 
 
@@ -13,11 +14,10 @@ class multiplicate_layer_by_attribute:
 
     def __init__(self, iface):
         """Constructor."""
-        # Save reference to the QGIS interface
+
         self.iface = iface
-        # initialize plugin directory
         self.plugin_dir = os.path.dirname(__file__)
-        # initialize locale
+
         locale = QSettings().value('locale/userLocale')[0:2]
         locale_path = os.path.join(
             self.plugin_dir,
@@ -34,8 +34,6 @@ class multiplicate_layer_by_attribute:
         self.menu = self.tr(u'&Multiplicate layer by attribute')
 
         self.first_start = None
-        self.active_layer = None
-        self.active_field = None
 
 
     def tr(self, message):
@@ -78,6 +76,7 @@ class multiplicate_layer_by_attribute:
 
         return action
 
+
     def initGui(self):
         """Create the menu entries and toolbar icons inside the QGIS GUI."""
 
@@ -107,11 +106,15 @@ class multiplicate_layer_by_attribute:
         if self.first_start == True:
             self.first_start = False
             self.dlg = multiplicate_layer_by_attributeDialog()
+
             self.dlg.layer_list.setAllowEmptyLayer(True, "Select")
             self.dlg.field_list.setAllowEmptyFieldName(True)
-            self.on_active_layer_changed()
-            self.iface.layerTreeView().currentLayerChanged.connect(self.on_active_layer_changed)
-            self.dlg.layer_list.layerChanged.connect(lambda:self.on_active_layer_changed(True))
+
+            if self.iface.activeLayer():
+                self.sync_tree_to_plugin(self.iface.activeLayer())
+
+            self.iface.layerTreeView().currentLayerChanged.connect(self.sync_tree_to_plugin)
+            self.dlg.layer_list.layerChanged.connect(self.sync_plugin_to_tree)
             self.dlg.field_list.fieldChanged.connect(self.on_active_field_changed)
 
         self.dlg.show()
@@ -120,90 +123,83 @@ class multiplicate_layer_by_attribute:
         if result:
             print("execute")
 
-            if not self.active_layer or self.active_layer.type() != QgsMapLayerType.VectorLayer:
+            if not self.dlg.layer_list.currentLayer():
                 self.dlg.messageBar.pushMessage("Select a layer in order to execute process", level=Qgis.Warning)
                 return
 
-            if not self.active_field:
+            if self.dlg.field_list.currentField() == "":
                 self.dlg.messageBar.pushMessage("Select a field in order to execute process", level=Qgis.Warning)
                 return
 
-            self.create_multiple_layers(self.active_layer, self.active_field)
+            self.create_multiple_layers()
 
 
-    def on_active_layer_changed(self, ui_change=False):
-        """ active layer changed """
+    def sync_tree_to_plugin(self, layer):
+        """Updates the combo box when the QGIS active layer changes."""
 
-        # if ui_change:
-        #     # layer changed in plugin UI
-        #     self.active_layer = self.dlg.layer_list.currentLayer()
+        if layer and layer.type() == QgsMapLayerType.VectorLayer:
+            # Block signals to prevent triggering sync_plugin_to_tree back
+            self.dlg.layer_list.blockSignals(True)
+            self.dlg.layer_list.setLayer(layer)
+            self.dlg.field_list.setLayer(layer)
+            self.dlg.layer_list.blockSignals(False)
 
-        #     if self.active_layer and self.active_layer.type() == QgsMapLayerType.VectorLayer:
-        #         print(f"1 Active layer changed to: {self.active_layer.name()}")
-        #         self.iface.setActiveLayer(self.active_layer)
-        #         self.dlg.field_list.setLayer(self.active_layer)
-        
-        # else:
-            # layer changed in QGIS layer tree
-        self.active_layer = self.iface.activeLayer()
 
-        if self.active_layer and self.active_layer.type() == QgsMapLayerType.VectorLayer:
-            print(f"2 Active layer changed to: {self.active_layer.name()}")
-            # active_layer = QgsProject.instance().layer(QgsProject.instance().layerTreeRoot().currentLayer().id())
-            self.dlg.layer_list.setLayer(self.active_layer)
-            self.dlg.field_list.setLayer(self.active_layer)
+    def sync_plugin_to_tree(self, layer):
+        """Updates the QGIS active layer when the combo box changes."""
 
-        if not self.active_layer or self.active_layer.type() != QgsMapLayerType.VectorLayer:
-            self.iface.setActiveLayer(None)
-            self.dlg.layer_list.setLayer(None)
-            self.dlg.field_list.setLayer(None)
-        
-        print(self.active_layer)
+        if layer:
+            # Set the layer as active in the QGIS interface
+            self.iface.setActiveLayer(layer)
+            self.dlg.field_list.setLayer(layer)
 
 
     def on_active_field_changed(self, none_selected=False):
         """ active field changed """
 
-        self.active_field = self.dlg.field_list.currentField()
-        print(f"Active field changed to: {self.active_field}")
+        self.dlg.field_values.clear()
 
-        if self.active_field == "":
-            return
+        active_layer = self.iface.activeLayer()
+        active_field = self.dlg.field_list.currentField()
 
         # get all unique values
-        unique_values = self.active_layer.uniqueValues(self.active_layer.fields().indexFromName(self.active_field))
+        unique_values = active_layer.uniqueValues(active_layer.fields().indexFromName(active_field))
 
-        for field_value in sorted(unique_values):
-            # TODO: cast to string
+        # Convert all values to strings first to ensure they can be sorted and added
+        string_values = [str(val) if val is not None else "NULL" for val in unique_values]
+
+        for field_value in sorted(string_values):
             self.dlg.field_values.addItem(field_value)
 
         self.dlg.resume_msg.setText(f"{len(unique_values)} layers will be created.")
 
 
-    def create_multiple_layers(self, layer, field):
+    def create_multiple_layers(self):
         """ clone layer with all unique selected field values """
+
+        active_layer = self.iface.activeLayer()
+        active_field = self.dlg.field_list.currentField()
 
         # create group
         parent = QgsProject.instance().layerTreeRoot()
-        layer_group = parent.addGroup(field)
+        layer_group = parent.addGroup(active_field)
 
         # get all unique values
-        unique_values = self.active_layer.uniqueValues(self.active_layer.fields().indexFromName(self.active_field))
+        unique_values = active_layer.uniqueValues(active_layer.fields().indexFromName(active_field))
 
         for field_value in sorted(unique_values):
+
             # Get the value from the active field fetching first feature that matches this class
-            filter_expression = f'"{field}" = \'{field_value}\''
+            filter_expression = f'"{active_field}" = \'{field_value}\''
             req = QgsFeatureRequest().setFilterExpression(filter_expression)
-            feature = next(layer.getFeatures(req), None)
+            feature = next(active_layer.getFeatures(req), None)
 
             if feature:
-                #brigada_val = feature[target_field]
 
                 if field_value and field_value != "":
-                    print(field_value)
 
                     # duplicate layer and apply Provider Feature Filter
-                    new_layer = layer.clone()
+                    new_layer = active_layer.clone()
                     new_layer.setName(str(field_value))
                     new_layer.setSubsetString(filter_expression)
 
