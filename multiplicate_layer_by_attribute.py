@@ -1,4 +1,5 @@
-from qgis.core import Qgis, QgsProject, QgsMapLayerType, QgsLayerTreeLayer, QgsFeatureRequest
+from qgis.core import Qgis, QgsProject, QgsMapLayerType, QgsLayerTreeLayer, QgsFeatureRequest, QgsExpression, QgsExpressionContext, QgsExpressionContextUtils
+from qgis.gui import QgsExpressionBuilderDialog
 
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication
 from qgis.PyQt.QtGui import QIcon
@@ -127,7 +128,8 @@ class multiplicate_layer_by_attribute:
                 self.dlg.messageBar.pushMessage("Select a layer in order to execute process", level=Qgis.Warning)
                 return
 
-            if self.dlg.field_list.currentField() == "":
+            #if self.dlg.field_list.currentField() == "":
+            if self.dlg.field_list.expression() == "":
                 self.dlg.messageBar.pushMessage("Select a field in order to execute process", level=Qgis.Warning)
                 return
 
@@ -152,6 +154,7 @@ class multiplicate_layer_by_attribute:
             # Set the layer as active in the QGIS interface
             self.iface.setActiveLayer(layer)
             self.dlg.field_list.setLayer(layer)
+            self.dlg.field_list.setField("")
 
 
     def on_active_field_changed(self, none_selected=False):
@@ -159,11 +162,10 @@ class multiplicate_layer_by_attribute:
 
         self.dlg.field_values.clear()
 
-        active_layer = self.iface.activeLayer()
-        active_field = self.dlg.field_list.currentField()
-
-        # get all unique values
-        unique_values = active_layer.uniqueValues(active_layer.fields().indexFromName(active_field))
+        unique_values = self.get_unique_values()
+        
+        if not unique_values:
+            return
 
         # Convert all values to strings first to ensure they can be sorted and added
         string_values = [str(val) if val is not None else "NULL" for val in unique_values]
@@ -174,18 +176,49 @@ class multiplicate_layer_by_attribute:
         self.dlg.resume_msg.setText(f"{len(unique_values)} layers will be created.")
 
 
+    def get_unique_values(self):
+        """ get unique field values from field name or expression """
+
+        active_layer = self.iface.activeLayer()
+        active_field = self.dlg.field_list.expression()
+
+        if not active_field or active_field == "":
+            return
+
+        field_index = active_layer.fields().lookupField(active_field)
+
+        if field_index != -1:
+            unique_values = active_layer.uniqueValues(field_index)
+        else:
+            expr = QgsExpression(active_field)
+            context = QgsExpressionContext()
+            context.appendScopes(QgsExpressionContextUtils.globalProjectLayerScopes(active_layer))
+            
+            expr.prepare(context)
+            
+            unique_values = set()
+            for feature in active_layer.getFeatures():
+                context.setFeature(feature)
+                value = expr.evaluate(context)
+                unique_values.add(value)
+
+        return unique_values
+
+
     def create_multiple_layers(self):
         """ clone layer with all unique selected field values """
 
+        unique_values = self.get_unique_values()
+
+        if not unique_values:
+            return
+
         active_layer = self.iface.activeLayer()
-        active_field = self.dlg.field_list.currentField()
+        active_field = self.dlg.field_list.expression().replace('"', '')
 
         # create group
         parent = QgsProject.instance().layerTreeRoot()
         layer_group = parent.addGroup(active_field)
-
-        # get all unique values
-        unique_values = active_layer.uniqueValues(active_layer.fields().indexFromName(active_field))
 
         for field_value in sorted(unique_values):
 

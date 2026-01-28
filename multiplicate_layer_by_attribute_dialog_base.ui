@@ -42,11 +42,7 @@
     </widget>
    </item>
    <item>
-    <widget class="QgsFieldComboBox" name="field_list">
-     <property name="allowEmptyFieldName">
-      <bool>false</bool>
-     </property>
-    </widget>
+    <widget class="QgsFieldExpressionWidget" name="field_list"/>
    </item>
    <item>
     <widget class="QLabel" name="label_2">
@@ -89,9 +85,9 @@
  </widget>
  <customwidgets>
   <customwidget>
-   <class>QgsFieldComboBox</class>
-   <extends>QComboBox</extends>
-   <header>qgsfieldcombobox.h</header>
+   <class>QgsFieldExpressionWidget</class>
+   <extends>QWidget</extends>
+   <header>qgsfieldexpressionwidget.h</header>
   </customwidget>
   <customwidget>
    <class>QgsMapLayerComboBox</class>
