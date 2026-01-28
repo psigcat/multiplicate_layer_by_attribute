@@ -216,26 +216,49 @@ class multiplicate_layer_by_attribute:
         active_layer = self.iface.activeLayer()
         active_field = self.dlg.field_list.expression().replace('"', '')
 
+        if not active_field or active_field == "":
+            return
+
+        field_index = active_layer.fields().lookupField(active_field)
+        expr_endswith = ""
+        expr_compare = "="
+        if field_index == -1:
+            expr_compare = "LIKE"
+            expr_endswith = "%"
+
+            # get used field name
+            for field in active_layer.fields().names():
+                if field in active_field:
+                    print(field)
+                    active_field = field
+                    break
+
         # create group
         parent = QgsProject.instance().layerTreeRoot()
         layer_group = parent.addGroup(active_field)
 
+        new_layers = []
         for field_value in sorted(unique_values):
 
-            # Get the value from the active field fetching first feature that matches this class
-            filter_expression = f'"{active_field}" = \'{field_value}\''
-            req = QgsFeatureRequest().setFilterExpression(filter_expression)
-            feature = next(active_layer.getFeatures(req), None)
+            if field_value and field_value != "":
 
-            if feature:
+                # Get the value from the active field fetching first feature that matches this class
+                filter_expression = f'"{active_field}" {expr_compare} \'{field_value}{expr_endswith}\''
+                print(filter_expression)
 
-                if field_value and field_value != "":
+                req = QgsFeatureRequest().setFilterExpression(filter_expression)
+                feature = next(active_layer.getFeatures(req), None)
+
+                if feature:
 
                     # duplicate layer and apply Provider Feature Filter
                     new_layer = active_layer.clone()
                     new_layer.setName(str(field_value))
                     new_layer.setSubsetString(filter_expression)
+                    new_layers.append(new_layer)
 
-                    QgsProject.instance().addMapLayer(new_layer, False)
+                    # TODO! hangs QGIS after a while
                     layer_group.addChildNode(QgsLayerTreeLayer(new_layer))
 
+        QgsProject.instance().addMapLayers(new_layers, False)
+        layer.triggerRepaint()
