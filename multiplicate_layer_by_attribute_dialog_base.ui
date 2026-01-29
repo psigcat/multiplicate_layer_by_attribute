@@ -27,7 +27,7 @@
    <item>
     <widget class="QLabel" name="label_3">
      <property name="text">
-      <string>Active Layer:</string>
+      <string>Active Layer</string>
      </property>
     </widget>
    </item>
@@ -37,7 +37,7 @@
    <item>
     <widget class="QLabel" name="label">
      <property name="text">
-      <string>Field to use for Provider filter:</string>
+      <string>Field or expression to use for Provider filter</string>
      </property>
     </widget>
    </item>
@@ -47,7 +47,7 @@
    <item>
     <widget class="QLabel" name="label_2">
      <property name="text">
-      <string>Unique values:</string>
+      <string>Unique values</string>
      </property>
     </widget>
    </item>

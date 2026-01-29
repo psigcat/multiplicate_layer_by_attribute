@@ -223,29 +223,19 @@ class multiplicate_layer_by_attribute:
             return
 
         active_layer = self.iface.activeLayer()
-        active_field = self.dlg.field_list.expression().replace('"', '')
+        active_field = self.dlg.field_list.expression()
 
         if not active_field or active_field == "":
             return
 
+        # add "" to field names, but not expressions
         field_index = active_layer.fields().lookupField(active_field)
-        expr_endswith = ""
-        expr_compare = "="
-        if field_index == -1:
-            expr_compare = "LIKE"
-            expr_endswith = "%"
-
-            # get used field name
-            for field in active_layer.fields().names():
-                if field in active_field:
-                    print(field)
-                    active_field = field
-                    break
+        if field_index != -1:
+            active_field = '"' + active_field + '"'
 
         # create group
         parent = QgsProject.instance().layerTreeRoot()
         layer_group = parent.addGroup(active_field)
-        #layer_group.setItemVisibilityChecked(True)
 
         # stop the canvas from updating
         canvas = self.iface.mapCanvas()
@@ -259,7 +249,7 @@ class multiplicate_layer_by_attribute:
             if field_value and field_value != "":
 
                 # Get the value from the active field fetching first feature that matches this class
-                filter_expression = f'"{active_field}" {expr_compare} \'{field_value}{expr_endswith}\''
+                filter_expression = f'{active_field} = \'{field_value}\''
                 print(filter_expression)
 
                 req = QgsFeatureRequest().setFilterExpression(filter_expression)
@@ -272,8 +262,6 @@ class multiplicate_layer_by_attribute:
                     new_layer.setName(str(field_value))
                     new_layer.setSubsetString(filter_expression)
                     new_layers.append(new_layer)
-
-                    # TODO! hangs QGIS after a while
                     layer_group.addChildNode(QgsLayerTreeLayer(new_layer))
 
                     # zoom to first layer
