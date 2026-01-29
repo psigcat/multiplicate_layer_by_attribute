@@ -205,6 +205,15 @@ class multiplicate_layer_by_attribute:
         return unique_values
 
 
+    def hide_all_layers_but(self, group, target_layer_name=False):
+        """ Hide all layers inside a layer group but given """
+
+        for child in group.children():
+            if isinstance(child, QgsLayerTreeLayer):
+                visible = target_layer_name and child.name() == target_layer_name
+                child.setItemVisibilityChecked(visible)
+
+
     def create_multiple_layers(self):
         """ clone layer with all unique selected field values """
 
@@ -236,8 +245,15 @@ class multiplicate_layer_by_attribute:
         # create group
         parent = QgsProject.instance().layerTreeRoot()
         layer_group = parent.addGroup(active_field)
+        #layer_group.setItemVisibilityChecked(True)
+
+        # stop the canvas from updating
+        canvas = self.iface.mapCanvas()
+        canvas.freeze(True)
 
         new_layers = []
+        first_layer = None
+
         for field_value in sorted(unique_values):
 
             if field_value and field_value != "":
@@ -260,5 +276,18 @@ class multiplicate_layer_by_attribute:
                     # TODO! hangs QGIS after a while
                     layer_group.addChildNode(QgsLayerTreeLayer(new_layer))
 
+                    # zoom to first layer
+                    if not first_layer:
+                        first_layer = new_layer
+
         QgsProject.instance().addMapLayers(new_layers, False)
-        layer.triggerRepaint()
+        self.hide_all_layers_but(layer_group, first_layer.name())
+
+        self.iface.setActiveLayer(first_layer)
+        self.iface.mapCanvas().zoomToSelected(first_layer)
+
+        # enable and refresh the canvas
+        canvas.freeze(False)
+        canvas.refresh()
+
+        print("done")
