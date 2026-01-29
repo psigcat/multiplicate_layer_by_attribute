@@ -84,7 +84,7 @@ class multiplicate_layer_by_attribute:
         icon_path = self.plugin_dir + '/icon.png'
         self.add_action(
             icon_path,
-            text=self.tr(u'Parcs i Jardins Manager'),
+            text=self.tr(u'Multiplicate layer by attribute'),
             callback=self.run,
             parent=self.iface.mainWindow())
 
