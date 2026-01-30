@@ -1,9 +1,9 @@
-from qgis.core import Qgis, QgsProject, QgsMapLayerType, QgsLayerTreeLayer, QgsFeatureRequest, QgsExpression, QgsExpressionContext, QgsExpressionContextUtils
+from qgis.core import Qgis, QgsProject, QgsApplication, QgsTask, QgsMapLayerType, QgsLayerTreeLayer, QgsFeatureRequest, QgsExpression, QgsExpressionContext, QgsExpressionContextUtils
 from qgis.gui import QgsExpressionBuilderDialog
 
-from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication
+from qgis.PyQt.QtCore import Qt, QSettings, QTranslator, QCoreApplication
 from qgis.PyQt.QtGui import QIcon
-from qgis.PyQt.QtWidgets import QAction
+from qgis.PyQt.QtWidgets import QAction, QProgressBar
 
 from .multiplicate_layer_by_attribute_dialog import multiplicate_layer_by_attributeDialog
 
@@ -122,8 +122,6 @@ class multiplicate_layer_by_attribute:
         result = self.dlg.exec_()
 
         if result:
-            print("execute")
-
             if not self.dlg.layer_list.currentLayer():
                 self.dlg.messageBar.pushMessage("Select a layer in order to execute process", level=Qgis.Warning)
                 return
@@ -134,6 +132,10 @@ class multiplicate_layer_by_attribute:
                 return
 
             self.create_multiple_layers()
+
+            # TODO! better run in thread
+            #task = QgsTask.fromFunction('create layers', self.create_multiple_layers)
+            #QgsApplication.taskManager().addTask(task)
 
 
     def sync_tree_to_plugin(self, layer):
@@ -217,6 +219,8 @@ class multiplicate_layer_by_attribute:
     def create_multiple_layers(self):
         """ clone layer with all unique selected field values """
 
+        print("execute")
+
         unique_values = self.get_unique_values()
 
         if not unique_values:
@@ -227,6 +231,12 @@ class multiplicate_layer_by_attribute:
 
         if not active_field or active_field == "":
             return
+
+        # init progress bar
+        self.iface.messageBar().pushMessage(f"Creating layers...", level=Qgis.Success)
+
+        layer_count = len(unique_values)
+        self.progress = self.initProgressBar("Create layers...", layer_count)
 
         # add "" to field names, but not expressions
         field_index = active_layer.fields().lookupField(active_field)
@@ -263,6 +273,7 @@ class multiplicate_layer_by_attribute:
                     new_layer.setSubsetString(filter_expression)
                     new_layers.append(new_layer)
                     layer_group.addChildNode(QgsLayerTreeLayer(new_layer))
+                    self.progress.setValue(self.progress.value() + 1)
 
                     # zoom to first layer
                     if not first_layer:
@@ -278,4 +289,23 @@ class multiplicate_layer_by_attribute:
         canvas.freeze(False)
         canvas.refresh()
 
+        # remove progress bar
+        self.iface.messageBar().clearWidgets()
+        self.iface.messageBar().pushMessage(f"{layer_count} layers created.", level=Qgis.Success)
+
         print("done")
+
+
+    def initProgressBar(self, msg, count):
+        """Show progress bar."""
+
+        messageBar = self.iface.messageBar()
+
+        progressMessageBar = messageBar.createMessage(msg)
+        progress = QProgressBar()
+        progress.setMaximum(count)
+        progress.setAlignment(Qt.AlignmentFlag.AlignLeft|Qt.AlignmentFlag.AlignVCenter)
+        progressMessageBar.layout().addWidget(progress)
+        messageBar.pushWidget(progressMessageBar, Qgis.Info)
+
+        return progress
