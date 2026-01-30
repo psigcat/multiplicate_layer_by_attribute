@@ -8,6 +8,7 @@ from qgis.PyQt.QtWidgets import QAction, QProgressBar
 from .multiplicate_layer_by_attribute_dialog import multiplicate_layer_by_attributeDialog
 
 import os.path
+import webbrowser
 
 
 class multiplicate_layer_by_attribute:
@@ -81,14 +82,27 @@ class multiplicate_layer_by_attribute:
     def initGui(self):
         """Create the menu entries and toolbar icons inside the QGIS GUI."""
 
-        icon_path = self.plugin_dir + '/icon.png'
+        icon_path = os.path.join(self.plugin_dir, 'icon.png')
         self.add_action(
             icon_path,
             text=self.tr(u'Multiplicate layer by attribute'),
             callback=self.run,
             parent=self.iface.mainWindow())
+        self.add_action(
+            icon_path,
+            text=self.tr('Help'),
+            callback=self.help,
+            parent=self.iface.mainWindow(),
+            add_to_toolbar=False)
 
         self.first_start = True
+
+
+    def help(self, anchor=""):
+        """ Display a help page. """ 
+
+        url = "https://github.com/psigcat/multiplicate_layer_by_attribute#multiplicate-layer-by-attribute"
+        webbrowser.open(url, new=2)
 
 
     def unload(self):
@@ -113,6 +127,8 @@ class multiplicate_layer_by_attribute:
 
             if self.iface.activeLayer():
                 self.sync_tree_to_plugin(self.iface.activeLayer())
+
+            self.dlg.button_box.helpRequested.connect(self.help)
 
             self.iface.layerTreeView().currentLayerChanged.connect(self.sync_tree_to_plugin)
             self.dlg.layer_list.layerChanged.connect(self.sync_plugin_to_tree)

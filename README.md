@@ -21,7 +21,7 @@ Expressions have to be written in Standard SQL, meaning they will work in the Qu
 - Ends with: `"FIELD" LIKE '%9'`
 - Contains: `"FIELD" LIKE '%9%'`
 - One of many: `"FIELD" IN ('A', 'B', 'C')`
-- Case-sensitive: `"FIELD" GLOB 'a*'` (SQLite specific, but works in QGIS)
+- Case-sensitive: `"FIELD" ILIKE '%a%'`
 
 3. Numbers & Logic
 
