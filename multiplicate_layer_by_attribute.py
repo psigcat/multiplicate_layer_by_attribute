@@ -1,4 +1,4 @@
-from qgis.core import Qgis, QgsProject, QgsApplication, QgsTask, QgsMapLayerType, QgsLayerTreeLayer, QgsFeatureRequest, QgsExpression, QgsExpressionContext, QgsExpressionContextUtils
+from qgis.core import Qgis, QgsProject, QgsApplication, QgsTask, QgsMapLayerType, QgsLayerTreeLayer, QgsExpression, QgsExpressionContext, QgsExpressionContextUtils, QgsFeatureRequest, QgsVectorLayer, QgsExpression, QgsExpressionContext, QgsExpressionContextUtils
 from qgis.gui import QgsExpressionBuilderDialog
 
 from qgis.PyQt.QtCore import Qt, QSettings, QTranslator, QCoreApplication
@@ -9,6 +9,7 @@ from .multiplicate_layer_by_attribute_dialog import multiplicate_layer_by_attrib
 
 import os.path
 import webbrowser
+import configparser
 
 
 class multiplicate_layer_by_attribute:
@@ -82,6 +83,7 @@ class multiplicate_layer_by_attribute:
     def initGui(self):
         """Create the menu entries and toolbar icons inside the QGIS GUI."""
 
+        # add menu
         icon_path = os.path.join(self.plugin_dir, 'icon.png')
         self.add_action(
             icon_path,
@@ -115,6 +117,26 @@ class multiplicate_layer_by_attribute:
             self.iface.removeToolBarIcon(action)
 
 
+    def get_metadata_parameter(self, folder, parameter, section="general", file="metadata.txt"):
+        """ Get parameter value from Metadata """
+
+        # Check if metadata file exists
+        metadata_file = os.path.join(folder, file)
+        if not os.path.exists(metadata_file):
+            self.parent.dlg.messageBar.pushMessage(f"Couldn'f find metadata file: {metadata_file}", level=Qgis.Warning)
+            return None
+
+        value = None
+        try:
+            metadata = configparser.ConfigParser()
+            metadata.read(metadata_file)
+            value = metadata.get(section, parameter)
+        except Exception as e:
+            print(e)
+        finally:
+            return value
+
+
     def run(self):
         """Run method that performs all the real work"""
 
@@ -133,6 +155,11 @@ class multiplicate_layer_by_attribute:
             self.iface.layerTreeView().currentLayerChanged.connect(self.sync_tree_to_plugin)
             self.dlg.layer_list.layerChanged.connect(self.sync_plugin_to_tree)
             self.dlg.field_list.fieldChanged.connect(self.on_active_field_changed)
+
+            # Get plugin version from metadata
+            version = self.get_metadata_parameter(self.plugin_dir, "version")
+            name = self.get_metadata_parameter(self.plugin_dir, "name")
+            self.dlg.setWindowTitle(f"{name} {version}")
 
         self.dlg.show()
         result = self.dlg.exec_()
@@ -260,43 +287,56 @@ class multiplicate_layer_by_attribute:
             active_field = '"' + active_field + '"'
 
         # create group
-        parent = QgsProject.instance().layerTreeRoot()
-        layer_group = parent.addGroup(active_field)
+        root = QgsProject.instance().layerTreeRoot()
+        layer_group = root.addGroup(active_field)
+        layer_group.setCustomProperty("embedded_widgets/count", 0) # Performance tweak
 
         # stop the canvas from updating
         canvas = self.iface.mapCanvas()
         canvas.freeze(True)
 
         new_layers = []
+        nodes = []
+        batch_size = 100
         first_layer = None
 
         for field_value in sorted(unique_values):
+            if not field_value: continue
 
-            if field_value and field_value != "":
+            # Get the value from the active field fetching first feature that matches this class
+            filter_expression = f"{active_field} = '{field_value}'"
+            print(filter_expression)
 
-                # Get the value from the active field fetching first feature that matches this class
-                filter_expression = f'{active_field} = \'{field_value}\''
-                print(filter_expression)
+            # duplicate layer and apply Provider Feature Filter
+            new_layer = active_layer.clone()
+            new_layer.setName(str(field_value))
+            new_layer.setSubsetString(filter_expression)
 
-                req = QgsFeatureRequest().setFilterExpression(filter_expression)
-                feature = next(active_layer.getFeatures(req), None)
+            new_layers.append(new_layer)
+            nodes.append(QgsLayerTreeLayer(new_layer))
+            
+            # Batch Add to Project to keep memory stable
+            if len(new_layers) >= batch_size:
+                QgsProject.instance().addMapLayers(new_layers, False)
+                layer_group.insertChildNodes(-1, nodes)
+                new_layers = []
+                nodes = []
+        
+            self.progress.setValue(self.progress.value() + 1)
 
-                if feature:
+            # memorize to first layer
+            if not first_layer:
+                first_layer = new_layer
 
-                    # duplicate layer and apply Provider Feature Filter
-                    new_layer = active_layer.clone()
-                    new_layer.setName(str(field_value))
-                    new_layer.setSubsetString(filter_expression)
-                    new_layers.append(new_layer)
-                    layer_group.addChildNode(QgsLayerTreeLayer(new_layer))
-                    self.progress.setValue(self.progress.value() + 1)
+        # Add remaining layers
+        if new_layers:
+            QgsProject.instance().addMapLayers(new_layers, False)
+            layer_group.insertChildNodes(-1, nodes)
 
-                    # zoom to first layer
-                    if not first_layer:
-                        first_layer = new_layer
-
-        QgsProject.instance().addMapLayers(new_layers, False)
         self.hide_all_layers_but(layer_group, first_layer.name())
+
+        QgsProject.instance().write()
+        print("write")
 
         self.iface.setActiveLayer(first_layer)
         self.iface.mapCanvas().zoomToSelected(first_layer)
