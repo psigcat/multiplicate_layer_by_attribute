@@ -8,7 +8,7 @@ author=PSIG
 email=geraldo@servus.at
 license=GPL-3.0-or-later
 
-about=Multiplicate layer by attribute
+about=Create multiple layers from all unique values from a selected field or expression. Sponsored by Parcs i Jardins de Barcelona, Institut Municipal of Barcelona City Council.
 
 tracker=https://github.com/psigcat/multiplicate_layer_by_attribute/issues
 repository=https://github.com/psigcat/multiplicate_layer_by_attribute
