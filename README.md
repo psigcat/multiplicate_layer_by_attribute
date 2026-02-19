@@ -2,6 +2,8 @@
 
 Create multiple layers from all unique values from a selected field or expression.
 
+Sponsored by Parcs i Jardins de Barcelona, Institut Municipal of Barcelona City Council.
+
 ## Expressions
 
 Expressions have to be written in Standard SQL, meaning they will work in the Query Builder (SQLite/GeoPackage) and the QGIS Expression Engine without modification.
